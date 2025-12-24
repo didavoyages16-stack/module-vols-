@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module de Recherche de Vols - Amadeus</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 50px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #007bff;
+        }
+
+        form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        input, select, button {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .results {
+            margin-top: 20px;
+        }
+
+        .flight {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+
+        .flight h3 {
+            margin: 0;
+            color: #007bff;
+        }
+
+        .flight button {
+            margin-top: 10px;
+            padding: 8px 12px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .flight button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Recherche de Vols Simplifiée</h1>
+        <p>Amadeus</p>
+        
+        <form id="flightForm">
+            <input type="text" id="departure" placeholder="Ville de départ (ex: Paris)" required>
+            <input type="text" id="arrival" placeholder="Ville d'arrivée (ex: New York)" required>
+            <input type="date" id="departDate" required>
+            <input type="date" id="returnDate">
+            <select id="passengers">
+                <option value="1">1 passager</option>
+                <option value="2">2 passagers</option>
+                <option value="3">3 passagers</option>
+            </select>
+            <button type="submit">Rechercher des Vols</button>
+        </form>
+        
+        <div id="results" class="results" style="display: none;">
+            <h2>Résultats de Recherche</h2>
+            <div id="flightList"></div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('flightForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const departure = document.getElementById('departure').value;
+            const arrival = document.getElementById('arrival').value;
+            const departDate = document.getElementById('departDate').value;
+            const returnDate = document.getElementById('returnDate').value;
+            const passengers = document.getElementById('passengers').value;
+            
+            // Appel au serveur back-end
+            try {
+                const response = await fetch('http://localhost:3000/search-flights', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ departure, arrival, departDate, returnDate, passengers })
+                });
+                if (!response.ok) throw new Error('Erreur serveur lors de la recherche');
+                const flights = await response.json();
+                
+                // Afficher les résultats
+                const resultsDiv = document.getElementById('results');
+                const flightList = document.getElementById('flightList');
+                flightList.innerHTML = '';
+                
+                flights.forEach((flight, idx) => {
+                    const flightDiv = document.createElement('div');
+                    flightDiv.className = 'flight';
+                    flightDiv.innerHTML = `
+                        <h3>${flight.airline} — ${flight.flightNumber || ''}</h3>
+                        <p><strong>De :</strong> ${flight.from} <strong>À :</strong> ${flight.to}</p>
+                        <p><strong>Date :</strong> ${flight.date}</p>
+                        <p><strong>Durée :</strong> ${flight.duration}</p>
+                        <p><strong>Prix :</strong> ${flight.price} pour ${passengers} passager(s)</p>
+                        <div class="booking-area" id="booking-area-${idx}">
+                            <button class="book-btn">Réserver</button>
+                        </div>
+                    `;
+                    flightList.appendChild(flightDiv);
+
+                    const bookingArea = flightDiv.querySelector(`#booking-area-${idx}`);
+                    const bookBtn = bookingArea.querySelector('.book-btn');
+
+                    bookBtn.addEventListener('click', () => {
+                        // Prevent multiple forms
+                        if (bookingArea.querySelector('form')) return;
+
+                        const paxCount = Math.max(1, parseInt(passengers, 10) || 1);
+                        const form = document.createElement('form');
+                        form.style.marginTop = '10px';
+                        form.innerHTML = `
+                            <h4>Informations Passagers</h4>
+                            <div class="passengers"></div>
+                            <h4>Contact</h4>
+                            <input type="text" name="contactName" placeholder="Nom du contact" required style="display:block;margin:6px 0;padding:8px;">
+                            <input type="email" name="contactEmail" placeholder="Email" required style="display:block;margin:6px 0;padding:8px;">
+                            <input type="tel" name="contactPhone" placeholder="Téléphone" style="display:block;margin:6px 0;padding:8px;">
+                            <div style="margin-top:8px;">
+                                <button type="submit" class="confirm-btn">Confirmer la réservation</button>
+                                <button type="button" class="cancel-btn" style="margin-left:8px;background:#dc3545;">Annuler</button>
+                            </div>
+                            <div class="booking-message" style="margin-top:8px;"></div>
+                        `;
+                        bookingArea.appendChild(form);
+
+                        const passengersContainer = form.querySelector('.passengers');
+                        for (let i = 0; i < paxCount; i++) {
+                            const pDiv = document.createElement('div');
+                            pDiv.innerHTML = `
+                                <input type="text" name="paxName" placeholder="Nom passager ${i+1}" required style="display:block;margin:6px 0;padding:8px;">
+                                <select name="paxGender" style="display:block;margin:6px 0;padding:8px;">
+                                    <option value="">Genre</option>
+                                    <option value="M">M</option>
+                                    <option value="F">F</option>
+                                </select>
+                            `;
+                            passengersContainer.appendChild(pDiv);
+                        }
+
+                        const cancelBtn = form.querySelector('.cancel-btn');
+                        cancelBtn.addEventListener('click', () => {
+                            form.remove();
+                        });
+
+                        form.addEventListener('submit', async (ev) => {
+                            ev.preventDefault();
+                            const msgDiv = form.querySelector('.booking-message');
+                            msgDiv.textContent = 'Envoi de la réservation...';
+                            const formData = new FormData(form);
+                            const contact = {
+                                name: formData.get('contactName'),
+                                email: formData.get('contactEmail'),
+                                phone: formData.get('contactPhone')
+                            };
+                            const pax = [];
+                            // collect paxName fields
+                            form.querySelectorAll('input[name="paxName"]').forEach((input, i) => {
+                                pax.push({
+                                    name: input.value,
+                                    gender: form.querySelectorAll('select[name="paxGender"]')[i].value || ''
+                                });
+                            });
+
+                            try {
+                                const bookResponse = await fetch('http://localhost:3000/book-flight', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                        flight,
+                                        passengers: pax,
+                                        contact,
+                                        paxCount
+                                    })
+                                });
+                                if (!bookResponse.ok) throw new Error('Erreur serveur lors de la réservation');
+                                const bookingResult = await bookResponse.json();
+
+                                // Afficher confirmation réaliste
+                                msgDiv.style.color = 'green';
+                                msgDiv.innerHTML = `
+                                    Réservation confirmée !<br>
+                                    Référence : ${bookingResult.bookingRef || bookingResult.ref || 'N/A'}<br>
+                                    Total débité : ${bookingResult.total || flight.price} <br>
+                                    Un email de confirmation a été envoyé à ${contact.email}.
+                                `;
+                                // Optionally disable further booking for this flight
+                                bookBtn.disabled = true;
+                                form.querySelectorAll('input, select, button').forEach(el => el.disabled = true);
+                            } catch (err) {
+                                console.error('Erreur réservation:', err);
+                                msgDiv.style.color = 'red';
+                                msgDiv.textContent = 'Impossible de finaliser la réservation. Vérifiez le serveur.';
+                            }
+                        });
+                    });
+                });
+                
+                resultsDiv.style.display = 'block';
+            } catch (error) {
+                console.error('Erreur lors de la recherche:', error);
+                alert('Erreur de recherche. Vérifiez que le serveur est lancé (node server.js) et consultez la console.');
+            }
+        });
+    </script>
+</body>
+</html>
